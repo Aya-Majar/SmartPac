@@ -1,5 +1,5 @@
 # AI_project_PAPACMAN
 
-Youtube link: 
-
+Video link: 
+  * we had problem with uploading video on Youtube
 team photo: https://postimg.cc/Dm4PrpQn/7ca43772
