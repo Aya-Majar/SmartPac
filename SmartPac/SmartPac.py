@@ -1,3 +1,4 @@
+pacman.py
 import pygame
 import random
 import sys
@@ -15,7 +16,7 @@ YELLOW = (255, 255, 0)
 
 
 class Maze:
-    pellets = []
+    dots = []
     def __init__(self, screen_width, screen_height, tile_size):
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -84,7 +85,7 @@ class Maze:
         return True
 
     def draw(self, screen):
-        self.pellets=[]
+        self.dots=[]
         # for each row
         for row in range(len(self.layout)):
             # for each col
@@ -96,7 +97,7 @@ class Maze:
                 if self.layout[row][col] == 1:  # wall
                     pygame.draw.rect(screen, BLUE, [x, y, self.cell_size, self.cell_size])
                 elif self.layout[row][col] == 2:  # dot
-                    self.pellets.append((row,col))
+                    self.dots.append((row,col))
                     pygame.draw.circle(screen, YELLOW,
                                        (x + self.cell_size // 2, y + self.cell_size // 2),
                                        self.cell_size / 10)
@@ -105,12 +106,16 @@ class Maze:
 class Player:
     stop=True
     possible_action = []
-    chooseExecuted=True
     target=[]
     cost=[]
     direction_cost=[]
     target_reached=True
     done=False
+    tookLongValue=3
+    Loops=0
+    using_astar=False
+
+
     def __init__(self, tile_size, maze):
         # Initialize player in the middle of the maze
         self.row = 1
@@ -122,14 +127,17 @@ class Player:
         self.radius = tile_size // 2 - 2
         self.speed = 1
 
+
     def draw(self, screen):
         # Draw Pac-Man
         x = self.col * self.tile_size + self.tile_size // 2 # in the middle of tile
         y = self.row * self.tile_size + self.tile_size // 2
         pygame.draw.circle(screen, YELLOW, (x, y), self.radius)
 
+    
     def change_direction(self, direction):
         self.direction = direction
+    
 
     def update(self):
         new_row, new_col = self.row, self.col
@@ -150,48 +158,85 @@ class Player:
             # Check if there's a dot to eat
             self.score += self.maze.eat_dot(self.row, self.col)
 
+
     def check_ghost_collision(self, ghosts):
             if self.row == ghosts.row and self.col == ghosts.col:
                 return True
             return False
-    def is_pellet(self, maze_layout, newPositionY, newPositionX):
-        return  maze_layout[newPositionY][newPositionX] == 2
+   
+
     def is_not_path(self, maze_layout, newPositionY, newPositionX):
         if 0 <= newPositionY < len(maze_layout) and 0 <= newPositionX < len(maze_layout[0]):
             return maze_layout[newPositionY][newPositionX] == 1
         return True  # Consider out of bounds as a wall
+    
+
+    def calculate_ghost_penalty(self, position, ghosts):
+        penalty = 0
+        for ghost in [ghosts]:  # Correct: iterate over each ghost               
+            ghost_pos = (ghost.row, ghost.col)
+            distance = self.manhattan_distance(position, ghost_pos)
+            if distance <= 1:
+                penalty += 50
+            elif distance == 2:
+                penalty += 15
+            elif distance == 3:
+                penalty += 5
+        return penalty
+    
+
     def possibleActions(self):
         self.possible_action = []  # Clear previous actions
 
         # Check all four directions
         if not self.is_not_path(self.maze.layout, self.row + 1, self.col):
             self.possible_action.append("down")
-            self.direction_cost.append(self.manhattan_distance(( self.row + 1, self.col),self.target)) 
+            self.direction_cost.append(self.manhattan_distance(( self.row + 1, self.col),self.target)+
+             self.calculate_ghost_penalty((self.row + 1, self.col),ghosts) ) 
+            
         if not self.is_not_path(self.maze.layout, self.row - 1, self.col):
             self.possible_action.append("up")
-            self.direction_cost.append(self.manhattan_distance(( self.row - 1, self.col),self.target)) 
+            self.direction_cost.append(self.manhattan_distance(( self.row - 1, self.col),self.target)+
+             self.calculate_ghost_penalty(( self.row - 1, self.col),ghosts) ) 
+            
         if not self.is_not_path(self.maze.layout, self.row, self.col + 1):
             self.possible_action.append("right")
-            self.direction_cost.append(self.manhattan_distance(( self.row, self.col + 1),self.target)) 
+            self.direction_cost.append(self.manhattan_distance(( self.row, self.col + 1),self.target)+
+             self.calculate_ghost_penalty((  self.row, self.col + 1),ghosts))
+             
         if not self.is_not_path(self.maze.layout, self.row, self.col - 1):
             self.possible_action.append("left")
-            self.direction_cost.append(self.manhattan_distance(( self.row, self.col - 1),self.target)) 
+            self.direction_cost.append(self.manhattan_distance(( self.row, self.col - 1),self.target)+
+             self.calculate_ghost_penalty((self.row, self.col - 1),ghosts)) 
+            
+
     def manhattan_distance(self,start, goal):
      # start and goal are (row, col)
      return abs(start[0] - goal[0]) + abs(start[1] - goal[1])
+    
+    
     def AStarSearch(self):
       if maze.all_dots_eaten():
         print("You Win!")
         self.done=True
         return
+      
       self.direction_cost=[]
-      if self.target_reached:
-        for pellets in maze.pellets:
-            self.cost.append(self.manhattan_distance((self.row,self.col),(pellets)))
-        self.target=maze.pellets[self.cost.index(min(self.cost))]
-        self.target_reached=False
+      self.cost=[]
+ 
+      for dots in maze.dots:
+            self.cost.append(self.manhattan_distance((self.row,self.col),(dots)))
+
+      indices = [i for i, x in enumerate(self.cost) if x == min(self.cost)]
+      if not(self.target_reached) and self.tookLongValue<= self.Loops:
+        self.target=maze.dots[random.choice(indices)]    
+      else:self.target=maze.dots[self.cost.index(min(self.cost))]
+      self.target_reached=False
+
       self.possibleActions()
-      if len(self.possible_action)!=1:
+
+      if not(self.target_reached) and self.tookLongValue<= self.Loops:
+         if len(self.possible_action)!=1:
                 if self.direction=="up" and "down" in self.possible_action:
                     self.direction_cost.pop(self.possible_action.index("down"))
                     self.possible_action.remove("down")
@@ -206,13 +251,20 @@ class Player:
                 elif self.direction=="left" and "right" in self.possible_action:
                     self.direction_cost.pop(self.possible_action.index("right"))
                     self.possible_action.remove("right") 
+                    
       min_value = min(self.direction_cost)
       indices = [i for i, x in enumerate(self.direction_cost) if x == min_value]            
-      self.index=random.choice(indices)
+      self.index= random.choice(indices)
       self.change_direction(self.possible_action[self.index])
+
       self.update()
-      if not(self.is_pellet(self.maze.layout, self.target[0], self.target[1])):
+
+      if not(maze.dot(self.target[0], self.target[1])):
           self.target_reached=True
+          self.Loops=0
+      else:  self.Loops+=1  
+
+
 class Ghost:
     def __init__(self, tile_size, maze, ghost_id):
         # Initialize ghost positions based on ghost_id
@@ -261,6 +313,7 @@ class Ghost:
 
         self.chooseExecuted = False
 
+
     def Choose(self):
         current_time = pygame.time.get_ticks()
         if current_time - self.last_move_time >= self.move_delay:
@@ -302,21 +355,16 @@ class Ghost:
             self.possible_action = []
             self.chooseExecuted = True
 
+
     def update(self, player):
         # Get possible actions if needed
         if self.chooseExecuted:
             self.possibleActions()
-
-        # Choose a direction and move
-        if not self.chooseExecuted:
+        else:
             self.Choose()
     def GhostDrawer(self):
         screen.blit(Ghost1Agent,(ghosts.positionX,ghosts.positionY))
    
-
-
-
-
 
 # Create the screen
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -325,11 +373,12 @@ pygame.display.set_caption("Pac-Man")
 # Create game objects - maze | player | ghost
 maze = Maze(SCREEN_WIDTH, SCREEN_HEIGHT, TILE_SIZE)
 player = Player(TILE_SIZE, maze)
-
-# create 4 ghosts
 ghosts = Ghost(TILE_SIZE, maze,0) 
+
 Ghost1Agent = pygame.image.load(ghosts.ghost_image)
 no_of_loops=0
+
+
 # Game loop
 running = True
 while running:
@@ -347,37 +396,40 @@ while running:
                 player.change_direction("up")
             elif event.key == pygame.K_DOWN:
                 player.change_direction("down")
+            elif event.key == pygame.K_a:  # Toggle A* pathfinding
+                player.using_astar = not player.using_astar    
         if event.type==pygame.KEYUP:
            if event.key==pygame.K_UP or event.key==pygame.K_DOWN or event.key==pygame.K_RIGHT or event.key==pygame.K_LEFT:
                player.stop=True 
-
-    # Update game state
-   # if player.stop==False:
-    # player.update()
-   
+    
     ghosts.update(player)
 
     # Check for collisions
-    # if player.check_ghost_collision(ghosts):
-    #     # Handle game over logic
-    #     print("Game Over!")
-    #     running = False
-
-   
-
+    if player.check_ghost_collision(ghosts):
+        # Handle game over logic
+        print("Game Over!")
+        print("Your score is "+ str(player.score))
+        running = False
+        
     # Draw everything
     screen.fill(BLACK)
     maze.draw(screen)
     player.draw(screen)
     ghosts.GhostDrawer()
 
-    player.AStarSearch()
-    no_of_loops+=1
-     # Check if all dots are eaten
+    # Update player state
+    if player.stop==False and not(player.using_astar) :
+        player.update()
+    elif player.using_astar:
+         player.AStarSearch()
+         no_of_loops+=1
+
+     # Check if player winned
     if player.done:
-        print("You Win!")
         print(no_of_loops)
+        print("Your score is "+ str(player.score))
         running = False
+
     # Update the display
     pygame.display.flip()
     clock.tick(10)  # 10 FPS
