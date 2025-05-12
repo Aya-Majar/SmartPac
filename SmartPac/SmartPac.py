@@ -113,7 +113,7 @@ class Player:
     done=False
     tookLongValue=3
     Loops=0
-    using_astar=False
+    using_greedy=False
 
 
     def __init__(self, tile_size, maze):
@@ -215,7 +215,7 @@ class Player:
      return abs(start[0] - goal[0]) + abs(start[1] - goal[1])
     
     
-    def AStarSearch(self):
+    def GreedySearch(self):
       if maze.all_dots_eaten():
         print("You Win!")
         self.done=True
@@ -366,6 +366,10 @@ class Ghost:
         screen.blit(Ghost1Agent,(ghosts.positionX,ghosts.positionY))
    
 
+
+
+
+
 # Create the screen
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Pac-Man")
@@ -397,10 +401,11 @@ while running:
             elif event.key == pygame.K_DOWN:
                 player.change_direction("down")
             elif event.key == pygame.K_a:  # Toggle A* pathfinding
-                player.using_astar = not player.using_astar    
+                player.using_greedy = not player.using_greedy    
         if event.type==pygame.KEYUP:
            if event.key==pygame.K_UP or event.key==pygame.K_DOWN or event.key==pygame.K_RIGHT or event.key==pygame.K_LEFT:
                player.stop=True 
+
     
     ghosts.update(player)
 
@@ -410,7 +415,9 @@ while running:
         print("Game Over!")
         print("Your score is "+ str(player.score))
         running = False
-        
+
+   
+
     # Draw everything
     screen.fill(BLACK)
     maze.draw(screen)
@@ -418,10 +425,10 @@ while running:
     ghosts.GhostDrawer()
 
     # Update player state
-    if player.stop==False and not(player.using_astar) :
+    if player.stop==False and not(player.using_greedy) :
         player.update()
-    elif player.using_astar:
-         player.AStarSearch()
+    elif player.using_greedy:
+         player.GreedySearch()
          no_of_loops+=1
 
      # Check if player winned
@@ -429,6 +436,7 @@ while running:
         print(no_of_loops)
         print("Your score is "+ str(player.score))
         running = False
+        
 
     # Update the display
     pygame.display.flip()
